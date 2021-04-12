@@ -9,16 +9,23 @@ library(spdep)
 ###
 
 
-## OBJECTIVE: classification OR clustering into super populations
+## OBJECTIVE: Use multiple clustering and classification methods to sort super populations
 # Classification: Ridge, LASSO, elastic w/ threshold; logistic regression; bagging
 # Clustering: Non-hierarchical; hierarchical
 
-# Lactose intolerance
-# LCT 2:135787850-135837195
-# MCM6 2:135839626-135876443
+
+# Alcohol digestion
+# ALDH2 12:111766933-111817532
 
 # Hair colour
 # OCA2 15:27719008-28099342
+
+# Bipolar disorder
+# CREB1 2:207529943-207605988
+
+# Solute carrier family 45 member 2
+# SLC45A2 5:33944623-33984693
+
 
 ###
 #### DATA IMPORT + PREPROCESSING-----
@@ -29,14 +36,9 @@ getwd()
 
 
 # Import vcf files
-# LCT
-LCT_EAS_file <- "2.135787850-135837195_LCT_EAS.vcf.gz"
-LCT_EUR_file <- "2.135787850-135837195_LCT_EUR.vcf.gz"
-
-
-# MCM6
-MCM6_EAS_file <- "2.135839626-135876443_MCM6_EAS.vcf.gz"
-MCM6_EUR_file <- "2.135839626-135876443_MCM6_EUR.vcf.gz"
+# ALDH2
+ALDH2_EAS_file <- "12.111766933-111817532_ALDH2_EAS.vcf.gz"
+ALDH2_EUR_file <- "12.111766933-111817532_ALDH2_EUR.vcf.gz"
 
 
 # OCA2
@@ -44,7 +46,16 @@ OCA2_EAS_file <- "15.27719008-28099342_OCA2_EAS.vcf.gz"
 OCA2_EUR_file <- "15.27719008-28099342_OCA2_EUR.vcf.gz"
 
 
-genes = c("LCT", "MCM6", "OCA2")
+# CREB1
+CREB1_EAS_file <- "2.207529943-207605988_CREB1_EAS.vcf.gz"
+CREB1_EUR_file <- "2.207529943-207605988_CREB1_EUR.vcf.gz"
+
+
+# SLC45A2
+SLC45A2_EAS_file <- "5.33944623-33984693_SLC45A2_EAS.vcf.gz"
+SLC45A2_EUR_file <- "5.33944623-33984693_SLC45A2_EUR.vcf.gz"
+
+genes = c("ALDH2", "OCA2", "CREB1", "SLC45A2")
 
 
 for (gene in genes) {
@@ -85,6 +96,6 @@ for (gene in genes) {
 }
 
 
-
+rm(list=ls())
 
 
