@@ -34,7 +34,6 @@ length(all_allele_freqs); length(allele_freqs)
 allele_counts <- all_allele_counts[, all_allele_freqs > 0.001]
 dim(allele_counts)
 
-
 #Read in metadata for asian & european superpops; combine rows
 meta_EUR<-read.table("igsr_samples.tsv",header=T,sep="\t")
 meta_EAS<-read.table("igsr_samples_EAS.tsv",header=T,sep="\t")
@@ -73,7 +72,7 @@ fviz_pca_biplot(pca_allele_counts,
                 legend.title="SuperPopulation",
                 labelsize=3,
                 max.overlaps=3,
-                title="PCA Biplot for Allele Counts, Colored by Tissue",
+                title="PCA Biplot for Allele Counts, Colored by Superpopulation",
                 subtitle="Depicting Scores and Top 10 Loadings for the first two PCs",
                 alpha.var=0.3,
                 pointsize=2,
