@@ -5,28 +5,18 @@ library(rattle)
 gene_counts <- read_csv("counts.csv")
 
 #tried decision tree
-pop_tree=rpart(factor(gene_counts$Population)~.,data=gene_counts[,-1], minsplit=1)
+pop_tree=rpart(factor(gene_counts$Population)~.,data=gene_counts[,-1],minsplit =1)
 
 par(mfrow=c(1,1))
 plot(pop_tree,margin=0.1, )
 text(pop_tree,use.n=T,cex=1.3)
 
-prune.cp <- function(cptable){
-  
-  CP <- cptable[,1]
-  cp <- sqrt(CP * c(Inf, CP[-length(CP)])) 	### inspect the code inside plotcp()!
-  xerr <- cptable[,4]
-  minrow <- which.min(xerr)
-  
-  xerr.1se <- sum(cptable[minrow,4:5])
-  index <- min(which(xerr < xerr.1se))
-  
-  cp.1se <- cp[index]
-  return(as.numeric(cp.1se) )}
+summary(pop_tree) ## detailed steps
+printcp(pop_tree) ## short summary
 
-prune.cp (pop_tree$cptable)
-pop_tree2 <- prune(pop_tree, cp = prune.cp (pop_tree$cptable) )
+fancyRpartPlot(pop_tree, main = "Decision Tree for European and East Asian Superpopulations", sub = "Using ALDH2, CREB1, OCA2 and SLC45A2 SNPs")
 
-par(mfrow=c(1,1))
-plot(pop_tree2,margin=.05)
-text(pop_tree2,use.n=T)
+prds <- predict(pop_tree,type='class')
+table(gene_counts$Population, prds)
+
+
