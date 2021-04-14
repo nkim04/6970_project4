@@ -72,8 +72,6 @@ do_chisq <- function(gene, population){
     biallele_counts <- t(allele_counts[, -c(1)]) %>% as.data.frame()
   }
   
-  rm(allele_counts, multi_names, multi_index, i)
-  
   if (population == "EAS"){
     biallele_counts <- biallele_counts[,1:504]
   } else {
@@ -113,24 +111,24 @@ do_chisq <- function(gene, population){
   return(p_values)
 }
 
-ALDH2_EAS_p <- do_chisq("ALDH2", "EAS")
-ALDH2_EUR_p <- do_chisq("ALDH2", "EUR")
-CREB1_EAS_p <- do_chisq("CREB1", "EAS")
-CREB1_EUR_p <- do_chisq("CREB1", "EUR")
-OCA2_EAS_p <- do_chisq("OCA2", "EAS")
-OCA2_EUR_p <- do_chisq("OCA2", "EUR")
-SLC45A2_EAS_p <- do_chisq("SLC45A2", "EAS")
-SLC45A2_EUR_p <- do_chisq("SLC45A2", "EUR")
+ALDH2_EAS <- do_chisq("ALDH2", "EAS")
+ALDH2_EUR <- do_chisq("ALDH2", "EUR")
+CREB1_EAS <- do_chisq("CREB1", "EAS")
+CREB1_EUR <- do_chisq("CREB1", "EUR")
+OCA2_EAS <- do_chisq("OCA2", "EAS")
+OCA2_EUR <- do_chisq("OCA2", "EUR")
+SLC45A2_EAS <- do_chisq("SLC45A2", "EAS")
+SLC45A2_EUR <- do_chisq("SLC45A2", "EUR")
 
-cbind(ALDH2_EAS_p,
-      ALDH2_EUR_p,
-      CREB1_EAS_p,
-      CREB1_EUR_p,
-      OCA2_EAS_p,
-      OCA2_EUR_p,
-      SLC45A2_EAS_p,
-      SLC45A2_EUR_p) %>% 
-  boxplot(main = "Boxplot of p-values from HWE test")
+cbind(ALDH2_EAS,
+      ALDH2_EUR,
+      CREB1_EAS,
+      CREB1_EUR,
+      OCA2_EAS,
+      OCA2_EUR,
+      SLC45A2_EAS,
+      SLC45A2_EUR) %>% 
+  boxplot(main = "Boxplot of p-values from HWE test", ylab = "Chi-square p-value", xlab = "Gene by population")
 abline(h = 0.05, col = "red", lty = 2)
 
 
@@ -149,6 +147,7 @@ counts_raw <- read.csv("counts.csv") %>%
 counts <- cbind("Population" = counts_raw[,1], scale(counts_raw[, 2:ncol(counts_raw)])) %>% 
   as.data.frame()
 counts[,2:ncol(counts)] <- sapply(counts[,2:ncol(counts)],as.numeric)
+
 
 table(round(apply(counts[2:ncol(counts)], 2, mean), 2))
 table(round(apply(counts[2:ncol(counts)], 2, sd), 2))
