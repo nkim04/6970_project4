@@ -335,17 +335,16 @@ findElbowPoint(pca_allele_counts$sdev^2) #35
 
 #PCA biplot of PC1 & PC2 colored by Population
 fviz_pca_biplot(pca_allele_counts,
-                select.var=list(contrib=10),
+                select.var=list(contrib=5),
                 label="var",
                 repel=TRUE,
                 addEllipses=F,
                 col.ind=counts_raw$Population,
-                #col.ind=counts_raw$Population,
                 legend.title="Population",
                 labelsize=3,
-                max.overlaps=3,
+                max.overlaps=500,
                 title="PCA Biplot for Allele Counts, Colored by Population",
-                subtitle="Depicting Scores and Top 10 Loadings for the first two PCs",
+                subtitle="Depicting Scores and Top 5 Loadings for the first two PCs",
                 alpha.var=0.3,
                 pointsize=2,
                 alpha.ind=0.8)+
@@ -360,7 +359,7 @@ pca_meta=cbind(X=rownames(counts_raw),Population=counts_raw$Population,pca_allel
 
 # Might other PCs have more discrimatory power for Populations?
 #Scatterplot of 1st and 3rd PCs colored by Population
-ggplot(pca_meta,aes(x=PC1,y=PC3,color=Population))+
+ggplot(pca_meta,aes(x=PC3,y=PC4,color=Population))+
   geom_point()
 
 ##
@@ -405,8 +404,7 @@ plot(cut(agnes_plot, h=0.11)$lower[[3]],
 plot(cut(agnes_plot, h=0.11)$lower[[4]], 
      main="Fourth branch of lower tree with cut at h=0.11")
 
-#View Counts (if split into 2 clusters)
-clusterCut <- dendextend::cutree(agnes,2)
+#View Counts (if split into 4 clusters)
 clusterCut <- dendextend::cutree(agnes,k=4)
 table(Dend=clusterCut, True=counts_raw$Population)
 
@@ -552,7 +550,7 @@ kmeans_folds_fn<-function(x){
 
 #Run k=means for each -fold
 kmeans_folds<-c()
-set.seed(7)
+set.seed(20)
 for (i in 1:5) {kmeans_folds[[i]]<-kmeans_folds_fn(i)}
 
 ### Decision Trees and Bagging
