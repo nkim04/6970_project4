@@ -23,7 +23,7 @@ pca_allele_counts<-prcomp(allele_counts_df[,3:ncol(allele_counts_df)],center=T)
 fviz_eig(pca_allele_counts, main="Screen Plot of first 10 PCs",addlabels=T,ggtheme=theme_minimal())
 findElbowPoint(pca_allele_counts$sdev^2) #35
 
-#PCA biplot of PC1 & PC2 colored by superpopulation
+#PCA biplot of PC1 & PC2 colored by Population
 fviz_pca_biplot(pca_allele_counts,
                 select.var=list(contrib=10),
                 label="var",
@@ -34,22 +34,22 @@ fviz_pca_biplot(pca_allele_counts,
                 legend.title="Population",
                 labelsize=3,
                 max.overlaps=3,
-                title="PCA Biplot for Allele Counts, Colored by Superpopulation",
+                title="PCA Biplot for Allele Counts, Colored by Population",
                 subtitle="Depicting Scores and Top 10 Loadings for the first two PCs",
                 alpha.var=0.3,
                 pointsize=2,
                 alpha.ind=0.8)+
 scale_shape_manual(values=c(9,19,20,21,22,23,24,8,2,3))
 
-#3D plot colored by superpopulation
-pca3d(pca_allele_counts,biplot=TRUE,biplot.vars=1,show.ellipses=F,group=allele_counts_df$Superpopulation.code)
+#3D plot colored by Population
+pca3d(pca_allele_counts,biplot=TRUE,biplot.vars=1,show.ellipses=F,group=allele_counts_df$Population)
 
 #Combine PCA scores with metadata (sample names and population) to plot other PCs
 pca_allele_counts_df=data.frame(pca_allele_counts$x)
 pca_meta=cbind(X=allele_counts_df$X,Population=allele_counts_df$Population,pca_allele_counts_df)
 
-# Might other PCs have more discrimatory power for superpopulations?
-#Scatterplot of 1st and 3rd PCs colored by superpopulation
+# Might other PCs have more discrimatory power for Populations?
+#Scatterplot of 1st and 3rd PCs colored by Population
 ggplot(pca_meta,aes(x=PC1,y=PC3,color=Population))+
   geom_point()
 
@@ -60,9 +60,6 @@ ggplot(pca_meta,aes(x=PC1,y=PC3,color=Population))+
 
 #Convert counts+metadata df to matrix to permit duplicate rownames
 allele_counts_matrix<-as.matrix(allele_counts_df)
-
-#Find column index for superpopulation.code
-#grep("Superpopulation.code", colnames(allele_counts_matrix)) #1549
 
 #Use Population as row names
 rownames(allele_counts_matrix)<-allele_counts_matrix[,2]
@@ -112,11 +109,8 @@ table(Dend=clusterCut, True=allele_counts_df$Population)
 #Convert counts+metadata df to matrix to permit duplicate rownames
 pca_meta_matrix<-as.matrix(pca_meta)
 
-#Use superpopulation.code as row names
+#Use Population as row names
 rownames(pca_meta_matrix)<-pca_meta_matrix[,2]
-
-#Remove column with superpopulation.code
-#pca_meta_matrix<-pca_meta_matrix[,-1]
 
 #Create distance matrix for rows (samples)
 dist_samples_pca<-get_dist(pca_meta_matrix[,3:5],method="euclidean",stand=FALSE)
@@ -152,7 +146,6 @@ plot(cut(agnes_pca_plot, h=45)$lower[[3]],
 #View counts (if split into 3 clusters)
 clusterCut_pca <- dendextend::cutree(agnes_pca,k=2)
 table(Dend=clusterCut_pca, True=allele_counts_df$Population)
-
 
 
 #Hierarchical clustering comparison ------
@@ -242,9 +235,13 @@ ggplot(data = kmean_pca_df, aes(y = Cluster.4kmean)) +
   labs(y="Cluster")+
   theme(plot.title = element_text(hjust = 0.5))
 
-#Scatterplot of PC1 & PC2 colored by population and shaped by cluster assignment in k=2
+#Scatterplot of PC1 & PC2 colored by population and shaped by cluster assignment in k=2:4
 library(ggpubr)
 ggscatter(kmean_pca_df,x="PC1",y="PC2",color="Cluster.2kmean",shape="Population",ellipse=TRUE,ellipse.type="convex",legend="right",repel=TRUE,size=1.2, xlab="Dim 1 (17.1%)", ylab="Dim 2 (10.5%)")+ stat_mean(aes(color = Cluster.2kmean), size = 4)
+
+ggscatter(kmean_pca_df,x="PC1",y="PC2",color="Cluster.3kmean",shape="Population",ellipse=TRUE,ellipse.type="convex",legend="right",repel=TRUE,size=1.2, xlab="Dim 1 (17.1%)", ylab="Dim 2 (10.5%)")+ stat_mean(aes(color = Cluster.2kmean), size = 4)
+
+ggscatter(kmean_pca_df,x="PC1",y="PC2",color="Cluster.4kmean",shape="Population",ellipse=TRUE,ellipse.type="convex",legend="right",repel=TRUE,size=1.2, xlab="Dim 1 (17.1%)", ylab="Dim 2 (10.5%)")+ stat_mean(aes(color = Cluster.2kmean), size = 4)
 
 #Function to compute sensitivity and specificity
 sn.sp <- function(mat){
