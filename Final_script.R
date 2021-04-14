@@ -376,7 +376,7 @@ rownames(allele_counts_matrix)<-allele_counts_matrix[,1]
 #Create distance matrix for rows (samples); (exclude col 'Population')
 dist_samples<-get_dist(allele_counts_matrix[,2:ncol(allele_counts_matrix)],method="binary",stand=FALSE)
 
-#Perform agglomerative clustering (using complete linkage and default euclidean distance)
+#Perform agglomerative clustering (using complete linkage)
 agnes<-agnes(abs(dist_samples), method = "complete")
 
 #Create object of class 'dendrogram' to facilitate manipulation
@@ -394,19 +394,19 @@ plot(agnes_plot, main="Dendrogram of Samples Colored by Population (on original 
 
 #Plot dendrogram with split branches (colored by Population); easier to visualize
 par(mfrow=c(5,1))
-plot(cut(agnes_plot, h=0.061)$upper, 
-     main="Dendrogram of Samples Colored by Population (on original data); Upper tree of cut at h=0.061")
-plot(cut(agnes_plot, h=0.061)$lower[[1]], 
-     main="First branch of lower tree with cut at h=0.061")
-plot(cut(agnes_plot, h=0.061)$lower[[2]], 
-     main="Second branch of lower tree with cut at h=0.061")
-plot(cut(agnes_plot, h=0.061)$lower[[3]], 
-     main="Third branch of lower tree with cut at h=0.061")
-plot(cut(agnes_plot, h=0.061)$lower[[4]], 
-     main="Fourth branch of lower tree with cut at h=0.061")
+plot(cut(agnes_plot, h=0.11)$upper, 
+     main="Dendrogram of Samples Colored by Population (on original data); Upper tree of cut at h=0.11")
+plot(cut(agnes_plot, h=0.11)$lower[[1]], 
+     main="First branch of lower tree with cut at h=0.11")
+plot(cut(agnes_plot, h=0.11)$lower[[2]], 
+     main="Second branch of lower tree with cut at h=0.11")
+plot(cut(agnes_plot, h=0.11)$lower[[3]], 
+     main="Third branch of lower tree with cut at h=0.11")
+plot(cut(agnes_plot, h=0.11)$lower[[4]], 
+     main="Fourth branch of lower tree with cut at h=0.11")
 
 #View Counts (if split into 2 clusters)
-clusterCut <- dendextend::cutree(agnes, 2)
+clusterCut <- dendextend::cutree(agnes,2)
 clusterCut <- dendextend::cutree(agnes,k=4)
 table(Dend=clusterCut, True=counts_raw$Population)
 
@@ -443,14 +443,14 @@ plot(agnes_pca_plot, main="Dendrogram of Samples Colored by Population (on top 3
 
 #Plot dendrogram with split branches (colored by Population); easier to visualize
 par(mfrow=c(3,1))
-plot(cut(agnes_pca_plot, h=45)$upper, 
-     main="Dendrogram of Samples Colored by Population (on top 3 PCs); Upper tree of cut at h=45")
-plot(cut(agnes_pca_plot, h=45)$lower[[1]], 
-     main="First branch of lower tree with cut at h=45")
-plot(cut(agnes_pca_plot, h=45)$lower[[2]], 
-     main="Second branch of lower tree with cut at h=45")
+plot(cut(agnes_pca_plot, h=25)$upper, 
+     main="Dendrogram of Samples Colored by Population (on top 3 PCs); Upper tree of cut at h=25")
+plot(cut(agnes_pca_plot, h=25)$lower[[1]], 
+     main="First branch of lower tree with cut at h=25")
+plot(cut(agnes_pca_plot, h=25)$lower[[2]], 
+     main="Second branch of lower tree with cut at h=25")
 
-#View counts (if split into 3 clusters)
+#View counts (if split into 2 clusters)
 clusterCut_pca <- dendextend::cutree(agnes_pca,k=2)
 table(Dend=clusterCut_pca, True=counts_raw$Population)
 
@@ -547,10 +547,12 @@ kmeans_folds_fn<-function(x){
   #print(length((pca_meta_subset[-fold])))
   km<-kmeans(x=pca_meta_subset[-fold,],centers=2,nstart=25)
   print(table(pca_meta[-fold,]$Population,as.factor(km$cluster)))
+  sn.sp(table(pca_meta[-fold,]$Population,as.factor(km$cluster)))
 }
 
 #Run k=means for each -fold
 kmeans_folds<-c()
+set.seed(7)
 for (i in 1:5) {kmeans_folds[[i]]<-kmeans_folds_fn(i)}
 
 ### Decision Trees and Bagging
