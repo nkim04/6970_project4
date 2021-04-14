@@ -3,6 +3,7 @@
 
 library(tidyverse)
 library(HardyWeinberg)
+library(MASS)
 library(glmnet)
 library(pROC)
 library(caret)
@@ -44,7 +45,6 @@ counts <- cbind(ALDH2_counts,
                 SLC45A2_counts[2:ncol(SLC45A2_counts)])
 
 
-rm(list=ls())
 #write.csv(counts, file = "counts.csv")
 counts <- read.csv("counts.csv")
 
@@ -54,31 +54,59 @@ counts <- read.csv("counts.csv")
 ##
 
 
-# Remove non-biallelic SNPs
-multi_names <- colnames(counts)[grep("\\.2", colnames(counts))] %>% 
-  substr(., 1, nchar(.)-2)
+genes = c("ALDH2", "CREB1", "OCA2", "SLC45A2")
 
-
-multi_index <- NULL
-for (i in seq(length(multi_names))) {
-  multi_index <- c(multi_index, grep(multi_names[i], colnames(counts)))
-}
-biallelic_counts <- t(counts[, -c(1, 2, multi_index)])
+for (gene in genes) {
   
+  allele_counts <- get(paste0(gene, "_counts"))
 
-# Get genotype counts
-AA <- apply(biallelic_counts, 1, function(x) sum(x == 0)) # Homozygous reference
-AB <- apply(biallelic_counts, 1, function(x) sum(x == 1)) # Heterozygous
-BB <- apply(biallelic_counts, 1, function(x) sum(x == 2)) # Homozygous alternate
-genotypes <- cbind(AA, AB, BB)
+  # Remove non-biallelic SNPs
+  multi_names <- colnames(allele_counts)[grep("\\.2", colnames(allele_counts))] %>% 
+    substr(., 1, nchar(.)-2)
+  
+  if (length(multi_names) != 0) {
+    
+    multi_index <- NULL
+    
+    for (i in seq(length(multi_names))) {
+      multi_index <- c(multi_index, grep(multi_names[i], colnames(allele_counts)))
+      }
+    biallelic_counts <- t(allele_counts[, -c(1, 2, multi_index)])
+    
+    } else {
+    biallelic_counts <- t(allele_counts[, -c(1, 2)])
+    
+    }
+  
+  # Get genotype counts
+  AA <- apply(biallelic_counts, 1, function(x) sum(x == 0)) # Homozygous reference
+  AB <- apply(biallelic_counts, 1, function(x) sum(x == 1)) # Heterozygous
+  BB <- apply(biallelic_counts, 1, function(x) sum(x == 2)) # Homozygous alternate
+  genotypes <- cbind(AA, AB, BB)
+  
+  
+  # Plot genotype frequencies (blue line = HWE)
+  par(mfrow = c(1,2))
+  print(HWGenotypePlot(genotypes, plottype = 1, pch = 19, cex = 0.8, main = paste0("Allele counts (", gene, ")")))
+  print(HWGenotypePlot(genotypes, plottype = 2, pch = 19, cex = 0.8))
+  par(mfrow = c(1,1))
+  
+  
+  # Perform chi-square test
+  EAS_AA <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 0)) %>% mean()
+  EAS_AB <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 1)) %>% mean()
+  EAS_BB <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 2)) %>% mean()
+  
+  EUR_AA <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 0)) %>% mean()
+  EUR_AB <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 1)) %>% mean()
+  EUR_BB <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 2)) %>% mean()
+  
+  genotypes <- cbind(rbind(EAS_AA, EAS_AB, EAS_BB),
+                     rbind(EUR_AA, EUR_AB, EUR_BB))
+  
+  print(chisq.test(genotypes))
 
-
-# Plot genotype frequencies (blue line = HWE)
-HWGenotypePlot(genotypes, plottype = 1, pch = 19, cex = 0.8)
-HWGenotypePlot(genotypes, plottype = 2, pch = 19, cex = 0.8)
-
-
-# Except for a few alleles, HWE can be roughly assumed
+}
 
 
 rm(list=setdiff(ls(), c("counts")))
@@ -89,21 +117,26 @@ rm(list=setdiff(ls(), c("counts")))
 ###
 
 
-# Integer encoding for Population
-counts <- read.csv("counts.csv") %>% 
+# Read and scale data
+counts_raw <- read.csv("counts.csv") %>% 
   remove_rownames() %>% 
   column_to_rownames(var="X")
-counts[,1] <- ifelse(counts$Population =="EAS", 0, 1)
+counts <- cbind("Population" = counts_raw[,1], scale(counts_raw[, 2:ncol(counts_raw)])) %>% 
+  as.data.frame()
+counts[,2:ncol(counts)] <- sapply(counts[,2:ncol(counts)],as.numeric)
+
+table(round(apply(counts[2:ncol(counts)], 2, mean), 2))
+table(round(apply(counts[2:ncol(counts)], 2, sd), 2))
+
+
+# Integer encoding for Population
+counts[,1] <- ifelse(counts[,1] =="EAS", 0, 1)
 y <- counts[,1]
-table(counts[,1])
+table(y)
 
 
 # Get the model matrix for glmnet, remove intercept column
-X <- model.matrix(lm(Population ~ ., data = counts))[,-1]
-
-
-# Are the predictors standardized?
-plot(as.ts(apply(X,2,sd)), xlab="covariate", ylab="sd")
+X <- model.matrix(lm(Population ~ ., data = as.data.frame(counts)))[,-1]
 
 
 # Create test, train, validation sets
@@ -132,7 +165,7 @@ train.model <- cv.glmnet(train.x, train.y, family = "binomial", type.measure = "
 setfolds <- train.model$foldid
 
 
-plot(train.model, )
+plot(train.model)
 
 
 # Observe key aspects of the glmnet object
@@ -141,12 +174,13 @@ rbind(c("lambda.min", "lambda.1se"),
       train.model$nzero[train.model$index+1],
       train.model$cvm[train.model$index+1])
 
-kept <- coef(train.model) %>% 
+selected_features <- coef(train.model) %>% 
   as.matrix() %>% 
   as.data.frame() %>% 
   rownames_to_column("Feature") %>% 
   .[-which(.[,2] == 0),]
-kept
+selected_features <- cbind(selected_features[-1,], abs(selected_features[-1,2]))
+selected_features[order(selected_features[, 3], decreasing = T),]
 
 
 # Validate the best lambda value with lambda.min and lambda.1se
@@ -213,3 +247,9 @@ plot(auc.test, main = "Logistic regression on test data")
 abline(h = snsp.test[indx2, 1], v = snsp.test[indx2, 2], col = 'blue', lty = 2)
 
 
+# Influential features
+coef(train.model, s = train.model$lambda.1se)
+## In vector form:
+coef.min <- coef(cvx, s = cvx$lambda.1se)[,1]
+coef.min[coef.min != 0] ## The selected ones only
+names(coef.min[coef.min != 0])[-1]
