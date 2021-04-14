@@ -54,59 +54,84 @@ counts <- read.csv("counts.csv")
 ##
 
 
-genes = c("ALDH2", "CREB1", "OCA2", "SLC45A2")
-
-for (gene in genes) {
+do_chisq <- function(gene, population){
   
   allele_counts <- get(paste0(gene, "_counts"))
-
+  
   # Remove non-biallelic SNPs
   multi_names <- colnames(allele_counts)[grep("\\.2", colnames(allele_counts))] %>% 
     substr(., 1, nchar(.)-2)
   
   if (length(multi_names) != 0) {
-    
     multi_index <- NULL
-    
     for (i in seq(length(multi_names))) {
       multi_index <- c(multi_index, grep(multi_names[i], colnames(allele_counts)))
-      }
-    biallelic_counts <- t(allele_counts[, -c(1, 2, multi_index)])
-    
-    } else {
-    biallelic_counts <- t(allele_counts[, -c(1, 2)])
-    
     }
+    biallele_counts <- t(allele_counts[, -c(1, multi_index)]) %>% as.data.frame()
+  } else {
+    biallele_counts <- t(allele_counts[, -c(1)]) %>% as.data.frame()
+  }
   
-  # Get genotype counts
-  AA <- apply(biallelic_counts, 1, function(x) sum(x == 0)) # Homozygous reference
-  AB <- apply(biallelic_counts, 1, function(x) sum(x == 1)) # Heterozygous
-  BB <- apply(biallelic_counts, 1, function(x) sum(x == 2)) # Homozygous alternate
-  genotypes <- cbind(AA, AB, BB)
+  rm(allele_counts, multi_names, multi_index, i)
   
+  if (population == "EAS"){
+    biallele_counts <- biallele_counts[,1:504]
+  } else {
+    biallele_counts <- biallele_counts[,505:ncol(biallele_counts)]
+  }
+  
+  # Observed genotype counts
+  AA_observed <- apply(biallele_counts, 1, function(x) sum(x == 0))
+  AB_observed <- apply(biallele_counts, 1, function(x) sum(x == 1))
+  BB_observed <- apply(biallele_counts, 1, function(x) sum(x == 2))
+  genotypes_observed <- rbind(AA_observed, AB_observed, BB_observed)
   
   # Plot genotype frequencies (blue line = HWE)
   par(mfrow = c(1,2))
-  print(HWGenotypePlot(genotypes, plottype = 1, pch = 19, cex = 0.8, main = paste0("Allele counts (", gene, ")")))
-  print(HWGenotypePlot(genotypes, plottype = 2, pch = 19, cex = 0.8))
+  print(HWGenotypePlot(t(genotypes_observed), plottype = 1, pch = 19, cex = 0.8, main = paste0(population, " alleles (", gene, ")")))
+  print(HWGenotypePlot(t(genotypes_observed), plottype = 2, pch = 19, cex = 0.8))
   par(mfrow = c(1,1))
   
+  # Observed allele frequencies
+  A_observed <- (AA_observed + 0.5*AB_observed)/ncol(biallele_counts)
+  B_observed <- (BB_observed + 0.5*AB_observed)/ncol(biallele_counts)
   
-  # Perform chi-square test
-  EAS_AA <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 0)) %>% mean()
-  EAS_AB <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 1)) %>% mean()
-  EAS_BB <- apply(biallelic_counts[,1:504], 1, function(x) sum(x == 2)) %>% mean()
+  # Expected genotype counts
+  AA_expected <- (A_observed^2)*ncol(biallele_counts)
+  AB_expected <- (2*A_observed*B_observed^1)*ncol(biallele_counts)
+  BB_expected <- (B_observed^2)*ncol(biallele_counts)
   
-  EUR_AA <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 0)) %>% mean()
-  EUR_AB <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 1)) %>% mean()
-  EUR_BB <- apply(biallelic_counts[,505:nrow(allele_counts)], 1, function(x) sum(x == 2)) %>% mean()
+  genotypes_expected <- rbind(AA_expected, AB_expected, BB_expected)
   
-  genotypes <- cbind(rbind(EAS_AA, EAS_AB, EAS_BB),
-                     rbind(EUR_AA, EUR_AB, EUR_BB))
+  p_values <- NULL
   
-  print(chisq.test(genotypes))
-
+  for (n in 1:ncol(genotypes_observed)) {
+    chisq_table <- cbind(genotypes_observed[,n], genotypes_expected[,n])
+    p_values[n] <- chisq.test(chisq_table)$p.value
+  }
+  
+  return(p_values)
 }
+
+ALDH2_EAS_p <- do_chisq("ALDH2", "EAS")
+ALDH2_EUR_p <- do_chisq("ALDH2", "EUR")
+CREB1_EAS_p <- do_chisq("CREB1", "EAS")
+CREB1_EUR_p <- do_chisq("CREB1", "EUR")
+OCA2_EAS_p <- do_chisq("OCA2", "EAS")
+OCA2_EUR_p <- do_chisq("OCA2", "EUR")
+SLC45A2_EAS_p <- do_chisq("SLC45A2", "EAS")
+SLC45A2_EUR_p <- do_chisq("SLC45A2", "EUR")
+
+cbind(ALDH2_EAS_p,
+      ALDH2_EUR_p,
+      CREB1_EAS_p,
+      CREB1_EUR_p,
+      OCA2_EAS_p,
+      OCA2_EUR_p,
+      SLC45A2_EAS_p,
+      SLC45A2_EUR_p) %>% 
+  boxplot(main = "Boxplot of p-values from HWE test")
+abline(h = 0.05, col = "red", lty = 2)
 
 
 rm(list=setdiff(ls(), c("counts")))
