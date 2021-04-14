@@ -5,6 +5,8 @@ library(factoextra)
 library(pca3d)
 library(PCAtools)
 library(cluster)
+library(caret)
+library(dendextend)
 library(tidyverse)
 
 #### For ALDH2 (alcohol) in Asians and Europeans
@@ -121,7 +123,6 @@ agnes<-agnes(abs(dist_samples), method = "complete")
 agnes_plot<- as.dendrogram(agnes)
 
 #Assign colors to the labels of the dendrogram
-library(dendextend)
 colors_to_use <- ifelse(allele_counts_df$Population=="EUR", 1, 2)
 colors_to_use <- colors_to_use[order.dendrogram(agnes_plot)]
 labels_colors(agnes_plot) <- colors_to_use
@@ -170,7 +171,7 @@ agnes_pca<-agnes(abs(dist_samples_pca), method = "complete")
 agnes_pca_plot<- as.dendrogram(agnes_pca)
 
 #Assign colors to the labels of the dendrogram
-library(dendextend)
+
 colors_to_use <- ifelse(allele_counts_df$Population=="EUR", 1, 2)
 colors_to_use <- colors_to_use[order.dendrogram(agnes_pca_plot)]
 labels_colors(agnes_pca_plot) <- colors_to_use
@@ -299,9 +300,20 @@ ggplot(data = kmean_pca_df, aes(y = Cluster.2kmean)) +
   theme(plot.title = element_text(hjust = 0.5))
 )
 
-#Scatterplot of PC1 & PC2 colored by population and shaped by cluster assignment in 2-kmeans
+#Scatterplot of PC1 & PC2 colored by population and shaped by cluster assignment in k=2
 ggplot(kmean_pca_df,aes(x=PC1,y=PC2,color=Population,shape=Cluster.2kmean))+
   geom_point()
+
+#Function to compute sensitivity and specificity
+sn.sp <- function(mat){
+  sn <- mat[2,2]/sum(mat[2,])
+  sp <- mat[1,1]/sum(mat[1,])
+  return(unlist(list(sensitivity=sn, specificity=sp)))
+}
+
+#Confusion Matrix, sensitivity, and specificity for k=2
+table(kmean_pca_df$Cluster.2kmean,kmean_pca_df$Population)
+sn.sp(table(kmean_pca_df$Cluster.2kmean,kmean_pca_df$Population))
 
 
 # Logistic regression (on all PCs) with alpha=1------------
@@ -320,7 +332,31 @@ f0 <- lm(Population ~ ., data=pca_meta_coded[,-1])
 #Create a model matrix and Remove intercept
 X <- model.matrix(f0)[,-1]
 
-set.seed(1545) 
+
+#Natalie's Folds----------------
+
+# Create test, train, validation sets
+set.seed(12345) 
+test.index <- sample.int(nrow(X), ceiling(nrow(X)*.2), replace = FALSE)
+train.x <- X[-test.index,]
+train.y <- y[-test.index]
+test.x <- X[test.index,]
+test.y <- y[test.index]
+
+validation.index <- sample.int(nrow(train.x), ceiling(nrow(train.x)*.5), replace = FALSE)
+validation.x <- train.x[validation.index,]
+validation.y <- train.y[validation.index]
+train.x <- train.x[-validation.index,]
+train.y <- train.y[-validation.index]
+
+rm(train.index, validation.index)
+
+#Train logistic Lasso
+train.model <- cv.glmnet(train.x, train.y, family = "binomial", type.measure = "auc", nfolds = 5, keep = TRUE)
+setfolds <- train.model$foldid
+
+#-------------------
+
 
 #Create test indices (20%)
 test.index <- sample.int(dim(X)[1],round(dim(X)[1]*.2), replace = FALSE)
@@ -400,3 +436,30 @@ plot(classtree_pca,margin=0.1)
 text(classtree_pca,use.n=T,cex=1.3)
 
 
+
+#K-means using folds from logistic regression----
+
+#Create list of 10 folds
+folds_for_kmean2<-createFolds(pca_meta$Population,k=10)
+
+#Update folds based on 'setfolds'
+for(i in 1:10){folds_for_kmean2[[i]]<-which(train.model$foldid==i)}
+
+
+#Create function to do k-means (k=2) on perturbed datasets
+kmeans_folds_fn<-function(x){
+  fold<-folds_for_kmean2[[x]]
+  pca_meta_subset<-pca_meta[,3:ncol(pca_meta)]
+  train<-pca_meta_subset[-fold,]
+  #print(length((pca_meta_subset[-fold])))
+  km<-kmeans(x=pca_meta_subset[-fold,],centers=2,nstart=25)
+  print(table(as.factor(km$cluster),pca_meta[-fold,]$Population))
+  sn.sp(table(as.factor(km$cluster),pca_meta[-fold,]$Population))
+  }
+
+#Run k=means for each -fold
+kmeans_folds<-c()
+for (i in 1:10) {kmeans_folds[[i]]<-kmeans_folds_fn(i)}
+
+#ERROR:
+#Error in kmeans(pca_meta_subset[-fold, ], 2, nstart = 25) : more cluster centers than distinct data points. 
