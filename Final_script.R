@@ -130,19 +130,27 @@ rm(list=setdiff(ls(), c("counts")))
 #### LOGISTIC REGRESSION ####
 ##
 
+# Read and scale data
+counts_raw <- read.csv("counts.csv") %>% 
+  remove_rownames() %>% 
+  column_to_rownames(var="X")
+counts <- cbind("Population" = counts_raw[,1], scale(counts_raw[, 2:ncol(counts_raw)])) %>% 
+  as.data.frame()
+counts[,2:ncol(counts)] <- sapply(counts[,2:ncol(counts)],as.numeric)
+
+table(round(apply(counts[2:ncol(counts)], 2, mean), 2))
+table(round(apply(counts[2:ncol(counts)], 2, sd), 2))
+
+
 # Integer encoding for Population
-y<- ifelse(counts$Population =="EAS", 0, 1)
-counts_regression <- counts
-counts_regression[,1] <- y
-table(counts_regression[,1])
+counts[,1] <- ifelse(counts[,1] =="EAS", 0, 1)
+y <- counts[,1]
+table(y)
 
 
 # Get the model matrix for glmnet, remove intercept column
-f0 <- lm(Population ~ ., data = counts_regression)
-X <- model.matrix(f0)[,-1]
-class(X)
-# Are the predictors standardized?
-plot(as.ts(apply(X,2,sd)), xlab="covariate", ylab="sd")
+X <- model.matrix(lm(Population ~ ., data = as.data.frame(counts)))[,-1]
+
 
 # Create test, train, validation sets
 set.seed(12345) 
@@ -153,6 +161,7 @@ test.x <- X[test.index,]
 test.y <- y[test.index]
 
 
+set.seed(12345)
 validation.index <- sample.int(nrow(train.x), ceiling(nrow(train.x)*.5), replace = FALSE)
 validation.x <- train.x[validation.index,]
 validation.y <- train.y[validation.index]
@@ -163,11 +172,13 @@ train.y <- train.y[-validation.index]
 rm(test.index, validation.index)
 
 
-#Train logistic Lasso
+# Train logistic Lasso
+set.seed(12345) 
 train.model <- cv.glmnet(train.x, train.y, family = "binomial", type.measure = "auc", nfolds = 5, keep = TRUE)
 setfolds <- train.model$foldid
 
-plot(train.model, )
+
+plot(train.model)
 
 
 # Observe key aspects of the glmnet object
@@ -176,12 +187,13 @@ rbind(c("lambda.min", "lambda.1se"),
       train.model$nzero[train.model$index+1],
       train.model$cvm[train.model$index+1])
 
-kept <- coef(train.model) %>% 
+selected_features <- coef(train.model) %>% 
   as.matrix() %>% 
   as.data.frame() %>% 
   rownames_to_column("Feature") %>% 
   .[-which(.[,2] == 0),]
-kept
+selected_features <- cbind(selected_features[-1,], abs(selected_features[-1,2]))
+selected_features[order(selected_features[, 3], decreasing = T),]
 
 
 # Validate the best lambda value with lambda.min and lambda.1se
@@ -247,12 +259,20 @@ confusionMatrix(data = as.factor(predict.test > 0.47), reference = as.factor(tes
 plot(auc.test, main = "Logistic regression on test data")
 abline(h = snsp.test[indx2, 1], v = snsp.test[indx2, 2], col = 'blue', lty = 2)
 
+
+# Influential features
+coef(train.model, s = train.model$lambda.1se)
+## In vector form:
+coef.min <- coef(cvx, s = cvx$lambda.1se)[,1]
+coef.min[coef.min != 0] ## The selected ones only
+names(coef.min[coef.min != 0])[-1]
+
 ##
 #### PCA ####
 ##
 
 #Perform PCA on counts matrix
-pca_allele_counts<-prcomp(counts[,3:ncol(counts)],center=T)
+pca_allele_counts<-prcomp(allele_counts_df[,3:ncol(allele_counts_df)],center=T)
 
 #Plot eigenvalues in a scree plot to show variances explained by each PC. 
 fviz_eig(pca_allele_counts, main="Screen Plot of first 10 PCs",addlabels=T,ggtheme=theme_minimal())
@@ -264,8 +284,8 @@ fviz_pca_biplot(pca_allele_counts,
                 label="var",
                 repel=TRUE,
                 addEllipses=F,
-                col.ind=counts$Population,
-                #col.ind=counts$Population,
+                col.ind=allele_counts_df$Population,
+                #col.ind=allele_counts_df$Population,
                 legend.title="Population",
                 labelsize=3,
                 max.overlaps=3,
@@ -277,11 +297,11 @@ fviz_pca_biplot(pca_allele_counts,
   scale_shape_manual(values=c(9,19,20,21,22,23,24,8,2,3))
 
 #3D plot colored by superpopulation
-pca3d(pca_allele_counts,biplot=TRUE,biplot.vars=1,show.ellipses=F,group=counts$Superpopulation.code)
+pca3d(pca_allele_counts,biplot=TRUE,biplot.vars=1,show.ellipses=F,group=allele_counts_df$Superpopulation.code)
 
 #Combine PCA scores with metadata (sample names and population) to plot other PCs
-pca_counts=data.frame(pca_allele_counts$x)
-pca_meta=cbind(X=counts$X,Population=counts$Population,pca_counts)
+pca_allele_counts_df=data.frame(pca_allele_counts$x)
+pca_meta=cbind(X=allele_counts_df$X,Population=allele_counts_df$Population,pca_allele_counts_df)
 
 # Might other PCs have more discrimatory power for superpopulations?
 #Scatterplot of 1st and 3rd PCs colored by superpopulation
@@ -292,7 +312,7 @@ ggplot(pca_meta,aes(x=PC1,y=PC3,color=Population))+
 ## Hierarchical Clustering on Original Data----------
 
 #Convert counts+metadata df to matrix to permit duplicate rownames
-allele_counts_matrix<-as.matrix(counts)
+allele_counts_matrix<-as.matrix(allele_counts_df)
 
 #Find column index for superpopulation.code
 #grep("Superpopulation.code", colnames(allele_counts_matrix)) #1549
@@ -319,7 +339,7 @@ agnes_plot<- as.dendrogram(agnes)
 
 #Assign colors to the labels of the dendrogram
 library(dendextend)
-colors_to_use <- ifelse(counts$Population=="EUR", 1, 2)
+colors_to_use <- ifelse(allele_counts_df$Population=="EUR", 1, 2)
 colors_to_use <- colors_to_use[order.dendrogram(agnes_plot)]
 labels_colors(agnes_plot) <- colors_to_use
 
@@ -368,7 +388,7 @@ agnes_pca_plot<- as.dendrogram(agnes_pca)
 
 #Assign colors to the labels of the dendrogram
 library(dendextend)
-colors_to_use <- ifelse(counts$Population=="EUR", 1, 2)
+colors_to_use <- ifelse(allele_counts_df$Population=="EUR", 1, 2)
 colors_to_use <- colors_to_use[order.dendrogram(agnes_pca_plot)]
 labels_colors(agnes_pca_plot) <- colors_to_use
 
@@ -401,17 +421,17 @@ plot(agnes_pca_plot, main="Dendrogram of Samples Colored by Population (on top 3
 #Note: use dataframe not matrix, because 1/0 columns needs to be integer/numberic not character
 
 #Find optimal number of clusters 
-fviz_nbclust(counts[,3:ncol(counts)], kmeans, method = "wss") +
+fviz_nbclust(allele_counts_df[,3:ncol(allele_counts_df)], kmeans, method = "wss") +
   geom_vline(xintercept = 3, linetype = 2)+
   labs(subtitle = "Elbow method")
 
 #k-means for k=2:3
-kmean2 <- kmeans(allele_counts_matrix[,3:ncol(counts)],2,nstart=25)
-kmean3 <- kmeans(allele_counts_matrix[,3:ncol(counts)],3,nstart=25)
+kmean2 <- kmeans(allele_counts_matrix[,3:ncol(allele_counts_df)],2,nstart=25)
+kmean3 <- kmeans(allele_counts_matrix[,3:ncol(allele_counts_df)],3,nstart=25)
 
 #Plot 2-means
 fviz_cluster(kmean2,
-             data=counts[,3:ncol(counts)],
+             data=allele_counts_df[,3:ncol(allele_counts_df)],
              palette = c("#2E9FDF", "#00AFBB", "#E7B800"), 
              stand=FALSE,
              geom = c("text","point"),
@@ -429,7 +449,7 @@ clusplot(dat, kmean2$cluster, color=TRUE, shade=TRUE,
 
 ?fviz_cluster
 #Create DF of cluster assignments and real superpop.code
-kmean_df<-data.frame(Cluster.3kmean=kmean3$cluster,Population=counts$Population)
+kmean_df<-data.frame(Cluster.3kmean=kmean3$cluster,Population=allele_counts_df$Population)
 kmean_df$Cluster.2kmean<-kmean2$cluster
 
 #Histogram of samples per ea. cluster for k=2, colored by superpopulation.code
@@ -570,12 +590,42 @@ snsp.test[indx2,]
 cutoff2 <- auc.test$thresholds[indx2]
 cutoff2
 
+#Plot ROC curves for training and test @ optimal thresholds
+par(mfrow=c(1,2))
+plot(auc.train)
+abline(h=snsp.train[indx,1],v=snsp.train[indx,2], col='blue', lty=2)
+plot(auc.test)
+abline(h=snsp.test[indx2,1],v=snsp.test[indx2,2], col='blue', lty=2)
+par(mfrow=c(1,1))
+
+#Sensitivity and specificity at threshold for train set
+sn.sp(table(y=y[-test.index],yhat=as.numeric(prds.train>cutoff)))
+
+#Sensitivity and specificity at threshold for test set
+sn.sp(table(y=y[ test.index],yhat=as.numeric(prds.test >cutoff2)))
+
+
+
+#Classification Tree on PCA data-----
+library(rpart)
+library(rattle)
+
+fancyRpartPlot(classtree_pca)
+
+par(mfrow=c(1,2))
+plot(classtree_pca,margin=0.1)
+text(classtree_pca,use.n=T,cex=1.3)
+
+### Decision Trees and Bagging
+#Previously very rare SNPs were filtered out but very common SNPs (>0.999) are also not of much use during classification
+#SNPs that have a high frequency means a lot of the samples, from both super populations, have that genotype
+#Differences in SNPs are what allow us to classify, therefore common SNPs will be removed 
 counts <- read.csv("counts.csv")
 rownames(counts) <- counts[,1]
 counts <- counts[,-1]
 SNP_freq <- apply(counts[,-1], 2, function(x) {sum(x)/(2*nrow(counts))})
 counts <- counts[, c("Population",names(SNP_freq[SNP_freq < 0.999]))]
-### Decision Trees and Bagging
+
 set.seed(4242) 
 
 train.index <- sample(1:nrow(counts), round(0.70*nrow(counts),0))
